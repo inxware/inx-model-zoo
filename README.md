@@ -28,7 +28,54 @@ falling back:
 
 `0` is **not** a "don't care" — it fails with `EHS_ML_MODEL_TYPE_ERR` (12).
 
+## File naming
+
+Converted files are named `<model>-<quantisation>.tfl`. The suffix is the whole
+point of the file, so it is worth knowing which is which:
+
+| Suffix     | Quantisation      | Weights | Activations | Input / output | Use it?                    |
+|------------|-------------------|---------|-------------|----------------|----------------------------|
+| `-dyn`     | dynamic range     | int8    | float32     | float32        | **yes** - the default      |
+| `-int8`    | full integer      | int8    | int8        | uint8          | **no** for YOLOv8, see below |
+| `-fp16`    | half precision    | float16 | float16     | float32        | not currently produced     |
+| *(none)*   | none              | float32 | float32     | float32        | reference / accuracy check |
+
+**`-dyn` is the one you want.** Dynamic range quantises only the weights, so the
+file is ~4x smaller and loads faster, while every activation stays float32 and
+nothing numerically dangerous happens to the detection head.
+
+**`-int8` quantises the activations too**, which is what unlocks AVX-VNNI and
+makes it fast in principle - and what destroys a YOLOv8 head in practice, for
+the reason set out under *Why there is no full-int8 pose model that works*
+below. It is published only as a labelled specimen of that failure.
+
+Files predating this convention (`yolo8n`, `yolo8md`, `yolo8mu8`, `yolo8m8`,
+`yolov8m32`) carry ad-hoc names. The Inventory table below records what each one
+measurably **is**, which is more reliable than what its name suggests.
+
+## Where the originals come from
+
+All PyTorch weights are Ultralytics' own published assets, release `v8.4.0`:
+
+| File                | Upstream URL                                                                    |
+|---------------------|---------------------------------------------------------------------------------|
+| `yolov8n.pt`        | https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n.pt        |
+| `yolov8m.pt`        | https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8m.pt        |
+| `yolov8s-pose.pt`   | https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s-pose.pt   |
+| `yolov8m-pose.pt`   | https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8m-pose.pt   |
+
+The `.onnx` files beside them are exports of those weights, not separate
+downloads. Every `.tfl` derives from the `.pt` in the same directory.
+
+Each directory has its own README recording that model's exact conversion
+command, tensor shapes and SHA-256 checksums, so any file here can be
+regenerated or verified rather than trusted.
+
 ## Inventory
+
+Each directory has its own README with that model's exact conversion command,
+tensor shapes and checksums: [yolov8s-pose](yolov8s-pose/), [yolov8m-pose](yolov8m-pose/),
+[yolov8n](yolov8n/), [yolov8m](yolov8m/), [hailo](hailo/).
 
 `layout` is the one that silently costs you a day: eRT requires **NHWC**. An
 Ultralytics *web UI* export produces NCHW, which eRT cannot consume.
@@ -40,7 +87,7 @@ Ultralytics *web UI* export produces NCHW, which eRT cannot consume.
 | `yolov8s-pose/tflite/yolov8s-pose-dyn.tfl`  | 11.5 | FLOAT32 | NHWC   | FLOAT32 | **recommended**                 |
 | `yolov8m-pose/tflite/yolov8m-pose-dyn.tfl`  | 25.7 | FLOAT32 | NHWC   | FLOAT32 | **recommended**, more accurate  |
 | `yolov8s-pose/tflite/yolov8s-pose-int8.tfl` | 11.5 | UINT8   | NHWC   | UINT8   | **broken — do not use**, see below |
-| `hailo/yolov8s_pose.hef`                    | 10.6 | —       | —      | —       | Hailo-8; provenance unconfirmed |
+| [`hailo/yolov8s_pose.hef`](hailo/) | 10.6 | — | — | — | Hailo-8; raw heads |
 
 ### Object detection — output `[1, 84, 8400]` = 4 box + 80 classes
 
@@ -51,14 +98,16 @@ Ultralytics *web UI* export produces NCHW, which eRT cannot consume.
 | `yolov8m/tflite/yolo8mu8.tfl`   | 25.2 | UINT8   | NHWC     | FLOAT32 | uint8 input, float output    |
 | `yolov8m/tflite/yolo8m8.tfl`    | 25.3 | FLOAT32 | **NCHW** | FLOAT32 | **eRT cannot load this**     |
 | `yolov8m/tflite/yolov8m32.tfl`  | 99.0 | FLOAT32 | **NCHW** | FLOAT32 | **eRT cannot load this**     |
-| `hailo/yolov8n.hef`             |  5.1 | —       | —        | —       | NMS compiled in; provenance unconfirmed |
+| [`hailo/yolov8n.hef`](hailo/) |  4.9 | — | — | — | Hailo-8; NMS compiled in |
 
 The two NCHW files are kept because they are what a web-UI export looks like,
 and recognising one is most of diagnosing it — not because they are usable.
 
 The `.hef` files were found in an ert-components working tree rather than
-produced here; whether they came from the Hailo model zoo or were compiled
-locally is **not established**. Confirm before relying on their provenance.
+produced here. Their architecture is Hailo Model Zoo's, but neither matches any
+published Hailo build by checksum (v2.11.0-v2.14.0 were compared), so the
+compiler version and operator are unknown — see [`hailo/README.md`](hailo/) for
+the evidence and what it does and does not establish.
 
 ## Why there is no full-int8 pose model that works
 
