@@ -1,0 +1,39 @@
+inx-model-zoo - NOTICE
+======================
+
+Provenance and licensing of the models in this repository.
+
+UPSTREAM
+--------
+Every model here derives from Ultralytics YOLOv8 weights, published by
+Ultralytics under the GNU Affero General Public License v3.0.
+
+    https://github.com/ultralytics/ultralytics
+    Copyright (C) Ultralytics
+
+WHAT THAT MEANS FOR THIS REPOSITORY
+-----------------------------------
+Quantising, re-encoding or recompiling a model produces a derived work.  These
+files are therefore distributed under the AGPL-3.0 as well, and the full licence
+text is in LICENSE.  Redistribution is permitted; redistribution *without* the
+licence and this attribution is not.
+
+The AGPL's network clause (section 13) is the part that catches people: it
+reaches software offered to users over a network, not only software shipped as
+a binary.  A product that serves inference from these weights is affected in a
+way that a permissively-licensed model would not be.
+
+    Ultralytics also sells a commercial licence for exactly this reason:
+    https://www.ultralytics.com/license
+
+    Anyone planning to ship these weights in a product should confirm which
+    licence applies to that product before doing so.  This repository takes no
+    position on that question - it records the constraint, it does not resolve
+    it.
+
+TOOLS, WHICH ARE NOT THE SAME QUESTION
+--------------------------------------
+The conversion scripts under ert-components/scripts/ai-utils/model-conversion/
+are Apache-2.0 / BSD / MIT.  The `ultralytics` package is used there only as a
+conversion tool.  Using an AGPL tool to produce a file does not by itself make
+the file AGPL - it is the weights being derived from AGPL weights that does.
