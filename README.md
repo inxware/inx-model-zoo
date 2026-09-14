@@ -67,6 +67,43 @@ All PyTorch weights are Ultralytics' own published assets, release `v8.4.0`:
 The `.onnx` files beside them are exports of those weights, not separate
 downloads. Every `.tfl` derives from the `.pt` in the same directory.
 
+## Which of these run on which engine
+
+**On Windows, use the `.onnx` files. The `.tfl` files will not load there.**
+
+The Windows eRT runtimes (`win_x86_64_{qt,gtk_gst,lvgl}_mv`) use OpenCV DNN as
+their inference engine, and as of 2026-09-14 that engine accepts **ONNX only** —
+it refuses `.tflite`/`.tfl` outright with `EHS_ML_MODEL_TYPE_ERR` (12). That is
+not a policy choice about this zoo; OpenCV's TFLite importer failed every model
+tried and segfaulted on two of them, so the format is rejected before it can
+reach the importer. See `ert-components/docs/ml-hal.md`
+§ *`.tflite` through OpenCV DNN* for the model-by-model evidence.
+
+Verified directly against the mingw OpenCV 5.0 DLLs the Windows runtimes ship
+(cross-compiled probe, run under wine), testing both gates the engine applies —
+the graph must parse, **and** the model must declare a static input shape:
+
+| Model                | ONNX parses | Input shape declared | Verdict on Windows |
+|----------------------|-------------|----------------------|--------------------|
+| `yolov8n.onnx`       | yes         | 640x640x3            | **loads**          |
+| `yolov8m.onnx`       | yes         | 640x640x3            | **loads**          |
+| `yolov8s-pose.onnx`  | yes         | 640x640x3            | **loads**          |
+| `yolov8m-pose.onnx`  | yes         | 640x640x3            | **loads**          |
+
+The static-shape column is not a formality: OpenCV DNN cannot report a model's
+input geometry, and eRT needs it both to hand frames to the model and to scale
+detection boxes, so a dynamic-shape export is refused with
+`EHS_ML_MODEL_TENSOR_DIM_ERR` (8) rather than run against a guessed size. These
+four are static because they were exported without `dynamic=True` — keep it that
+way when re-exporting.
+
+Note the pose models load on the OpenCV DNN *engine*, but Model Type `1008`
+(YOLOv8 pose post-processing) is currently implemented for Hailo only, so a pose
+model is not yet end-to-end usable on Windows. Object detection (`1006`) is.
+
+On Linux and Android the TFLite engine is the default and the `.tfl` files are
+the right choice; nothing above changes that.
+
 Each directory has its own README recording that model's exact conversion
 command, tensor shapes and SHA-256 checksums, so any file here can be
 regenerated or verified rather than trusted.
